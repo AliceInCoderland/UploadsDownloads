@@ -1,0 +1,302 @@
+Option Explicit
+
+Public dict_unique As Scripting.Dictionary
+Public dict1_unique As Scripting.Dictionary
+Public dict2_unique As Scripting.Dictionary
+Public dict3_unique As Scripting.Dictionary
+
+Public dict_UNunique As Scripting.Dictionary
+Public dict1_UNunique As Scripting.Dictionary
+Public dict2_UNunique As Scripting.Dictionary
+Public dict3_UNunique As Scripting.Dictionary
+
+Public dict_fill As Scripting.Dictionary
+Public dict_result As Scripting.Dictionary
+
+Const SN1_colNr As Long = 3
+Const SN2_colNr As Long = 3
+Const SN3_colNr As Long = 3
+
+Private marker As Boolean
+Private counter As Long
+
+Enum ff__Filler
+    Left = 1
+    Middle = 2
+    Right = 3
+End Enum
+
+Dim FillLeft As String
+Dim FillMiddle As String
+Dim FillRight As String
+
+Sub Sub_Main()
+On Error GoTo eh
+
+' Initialisierung
+Set dict1_unique = New Scripting.Dictionary
+Set dict2_unique = New Scripting.Dictionary
+Set dict3_unique = New Scripting.Dictionary
+
+Set dict1_UNunique = New Scripting.Dictionary
+Set dict2_UNunique = New Scripting.Dictionary
+Set dict3_UNunique = New Scripting.Dictionary
+
+Set dict_result = New Scripting.Dictionary
+counter = 0
+
+' Einheitlichkeit der SN prüfen
+Dim arr1 As Variant
+Dim arr2 As Variant
+Dim arr3 As Variant
+    
+Dim sh1 As Range
+Set sh1 = sh_Data1.Range("A1").CurrentRegion
+arr1 = sh1.Offset(1).Resize(sh1.Rows.Count - 1).Value2
+FillLeft = String(UBound(arr1, 2) - 1, "|")
+
+Dim sh2 As Range
+Set sh2 = sh_Data2.Range("A1").CurrentRegion
+arr2 = sh2.Offset(1).Resize(sh2.Rows.Count - 1).Value2
+FillMiddle = String(UBound(arr2, 2) - 1, "|")
+
+Dim sh3 As Range
+Set sh3 = sh_Data3.Range("A1").CurrentRegion
+arr3 = sh3.Offset(1).Resize(sh3.Rows.Count - 1).Value2
+FillRight = String(UBound(arr3, 2) - 1, "|")
+
+Call GetUniqueSN(arr1, sh1)
+Set dict1_unique = dict_unique
+Set dict1_UNunique = dict_UNunique
+
+Call GetUniqueSN(arr2, sh2)
+Set dict2_unique = dict_unique
+Set dict2_UNunique = dict_UNunique
+
+Call GetUniqueSN(arr3, sh3)
+Set dict3_unique = dict_unique
+Set dict3_UNunique = dict_UNunique
+
+Set dict_unique = Nothing
+Set dict_UNunique = Nothing
+
+' Verschiebe Daten von          hier         nach hier,      falls hier gefunden.
+Call CleanUniquesFromUnUniques(dict1_unique, dict1_UNunique, dict2_UNunique)
+Call CleanUniquesFromUnUniques(dict1_unique, dict1_UNunique, dict3_UNunique)
+
+Call CleanUniquesFromUnUniques(dict2_unique, dict2_UNunique, dict1_UNunique)
+Call CleanUniquesFromUnUniques(dict2_unique, dict2_UNunique, dict3_UNunique)
+
+Call CleanUniquesFromUnUniques(dict3_unique, dict3_UNunique, dict1_UNunique)
+Call CleanUniquesFromUnUniques(dict3_unique, dict3_UNunique, dict2_UNunique)
+
+Call MergeIT(dict1_unique, dict2_unique, dict3_unique)
+Call MergeIT(dict1_UNunique, dict2_UNunique, dict3_UNunique)
+
+
+' Ausgabe
+sh_result.Range("A1").CurrentRegion.Offset(1).ClearContents
+Dim resultKey As Variant
+Dim countRow As Long
+countRow = 2
+Dim firstCol As Long
+Dim lastCol As Long
+For Each resultKey In dict_result.Keys
+    firstCol = LBound(Split(dict_result(resultKey), "|")) + 1
+    lastCol = UBound(Split(dict_result(resultKey), "|")) + 1
+    sh_result.Range(Cells(countRow, firstCol), Cells(countRow, lastCol)).Value = Split(dict_result(resultKey), "|")
+    countRow = countRow + 1
+Next resultKey
+
+    Debug.Print sh_Data1.Name, sh_Data1.Range("A1").CurrentRegion.Columns.Count
+    Debug.Print sh_Data1.Name, sh_Data1.Range("A1").CurrentRegion.Rows(5).Address
+    Debug.Print sh_Data2.Name, sh_Data2.Range("A1").CurrentRegion.Columns.Count
+    Debug.Print sh_Data3.Name, sh_Data3.Range("A1").CurrentRegion.Columns.Count
+Exit Sub
+eh:
+
+Debug.Print Err.Number, Err.Description
+Stop
+Resume
+End Sub
+
+Public Function MergeIT(ByRef iDict1 As Scripting.Dictionary, ByRef iDict2 As Scripting.Dictionary, ByRef iDict3 As Scripting.Dictionary)
+On Error GoTo eh
+    Dim key
+    ' Durchlaufe alle Schlüssel aller Dicts
+'    Dim str1 As String
+'    Dim str2 As String
+'    Dim str3 As String
+    For Each key In iDict1.Keys
+'            If iDict1.Exists(key) = True Then
+'                str1 = iDict1(key)
+'            Else
+'                str1 = FillLeft
+'            End If
+'            If iDict2.Exists(key) = True Then
+'                str2 = iDict2(key)
+'            Else
+'                str2 = FillMiddle
+'            End If
+'            If iDict3.Exists(key) = True Then
+'                str3 = iDict3(key)
+'            Else
+'                str3 = FillRight
+'            End If
+' Warum wird hier ein Item erzeugt?
+' Eine Dict-Element wird schon bei einer Zuweisung an eine Variable automatisch erzeugt.
+' Da IIF komplett ausgewertet wird, findet hier also bereits eine Zuweisung (an eine interne Variable) statt,
+' wobei das Element hinzugefügt wird.
+' Da es ohnehin gelöscht wird, ist das nicht schlimm. Ein bereits existierendes Element wird dabei nicht überschrieben.
+            dict_result.Add key, _
+                        IIf(iDict1.Exists(key) = True, iDict1(key), FillLeft) & "|" & _
+                        IIf(iDict2.Exists(key) = True, iDict2(key), FillMiddle) & "|" & _
+                        IIf(iDict3.Exists(key) = True, iDict3(key), FillRight)
+            'dict_result.Add key, str1 & "|" & str2 & "|" & str3
+            If iDict1.Exists(key) Then iDict1.Remove key
+            If iDict2.Exists(key) Then iDict2.Remove key
+            If iDict3.Exists(key) Then iDict3.Remove key
+    Next key
+    For Each key In iDict2.Keys
+            dict_result.Add key, _
+                        IIf(iDict1.Exists(key) = True, iDict1(key), FillLeft) & "|" & _
+                        IIf(iDict2.Exists(key) = True, iDict2(key), FillMiddle) & "|" & _
+                        IIf(iDict3.Exists(key) = True, iDict3(key), FillRight)
+            If iDict1.Exists(key) Then iDict1.Remove key
+            If iDict2.Exists(key) Then iDict2.Remove key
+            If iDict3.Exists(key) Then iDict3.Remove key
+    Next key
+    For Each key In iDict3.Keys
+            dict_result.Add key, _
+                        IIf(iDict1.Exists(key) = True, iDict1(key), FillLeft) & "|" & _
+                        IIf(iDict2.Exists(key) = True, iDict2(key), FillMiddle) & "|" & _
+                        IIf(iDict3.Exists(key) = True, iDict3(key), FillRight)
+            If iDict1.Exists(key) Then iDict1.Remove key
+            If iDict2.Exists(key) Then iDict2.Remove key
+            If iDict3.Exists(key) Then iDict3.Remove key
+    Next key
+Exit Function
+eh:
+
+Debug.Print Err.Number, Err.Description
+Stop
+Resume
+End Function
+
+Public Function CleanUniquesFromUnUniques(ByRef iDict_unique As Scripting.Dictionary, ByRef iDict_UNunique As Scripting.Dictionary, ByRef iDict_OtherUNunique As Scripting.Dictionary)
+On Error GoTo eh
+    If iDict_OtherUNunique.Count > 0 Then
+        Dim iKey As Variant
+        'Dim marker As Boolean
+       ' Dim counter As Long
+        
+        For Each iKey In iDict_OtherUNunique.Keys
+            counter = 0
+            'If Right(CStr(iKey), 2) = CStr("_0") Then
+            If InStr(1, iKey, "_0") > 0 Then
+            ' "Initital-SN" finden
+                If iDict_unique.Exists(iKey) = True Then ' sollte so eine in iDict_unique sein...
+                    marker = True ' Fehler 457 unten fangen, nur wenn er hier geworfen wird.
+                    ' Zuerst aus dict_unique die Nullnummer übernehmen
+                    iDict_UNunique.Add Split(iKey, "_")(0) & "_" & counter, iDict_unique(iKey)
+                    ' dann in dict1 löschen, nur sofern es dort existiert.
+                    marker = False
+                    counter = 0
+                    iDict_unique.Remove iKey
+                End If
+            End If
+        Next iKey
+    End If
+Exit Function
+eh:
+    If Err.Number = 457 And marker = True Then
+        counter = counter + 1
+        Resume
+    Else
+        Debug.Print Err.Number, Err.Description
+        Stop
+        Resume
+    End If
+End Function
+
+Public Function GetUniqueSN(arr As Variant, sh As Range)
+On Error GoTo eh
+    Set dict_unique = New Scripting.Dictionary
+    Set dict_UNunique = New Scripting.Dictionary
+    Dim iRow As Long, iCol As Long, str As String
+    For iRow = LBound(arr, 1) To UBound(arr, 1)
+    'Debug.Assert iRow <> UBound(arr, 1)
+        str = Trim$(UCase$(arr(iRow, SN1_colNr)))
+        'Debug.Assert str <> "16"
+        If dict_unique.Exists(str & "_" & counter) = False And _
+            dict_UNunique.Exists(str & "_" & counter) = False Then ' SN noch gar nicht vorhanden
+            ' Mit dem Initial_Counter werden alle SN initial markiert.
+            ' Damit verhindert man später das Problem, wenn SN mehrfach gefunden worden sind,
+            ' dass diese hier (ohne Counter) nicht gefunden werden, und wegen dem Counter in UNunique nicht zu finden sind.
+            ' Ansonsten müsste man in UNunique mit einem Counter-String arbeiten, der dann zuerst leer ist.
+            dict_unique.Add str & "_" & counter, MergeRow(sh.Offset(1).Rows(iRow))
+        Else ' SN war in dict_unique bereits vorhanden
+            marker = True ' Fehler 457 unten fangen, nur wenn er hier geworfen wird.
+            ' Zuerst aus dict_unique die Nullnummer übernehmen, sofern dort vorhanden
+            If dict_unique.Exists(str & "_" & counter) = True Then dict_UNunique.Add str & "_" & counter, dict_unique(str & "_" & counter)
+            ' dann die aktuelle mehrfache SN direkt mit erhöhtem counter
+            dict_UNunique.Add str & "_" & counter + 1, MergeRow(sh.Offset(1).Rows(iRow)) ' falls vorhanden, wird über err=457 der Counter erhöht.
+            ' dann in dict_unique löschen, nur sofern es dort existiert.
+            marker = False
+            counter = 0
+            If dict_unique.Exists(str & "_" & counter) = True Then dict_unique.Remove str & "_" & counter ' hier muss counter bereits Zero sein
+        End If
+    Next iRow
+Exit Function
+eh:
+If Err.Number = 457 And marker = True Then
+    counter = counter + 1
+    Resume
+Else
+    Debug.Print Err.Number, Err.Description
+    Stop
+    Resume
+End If
+End Function
+
+
+
+Public Function MergeRow(iRow As Range) As String
+    MergeRow = Join(Application.WorksheetFunction.Transpose(Application.WorksheetFunction.Transpose( _
+                    iRow)), "|")
+    'Stop
+End Function
+
+Sub test()
+Debug.Print TypeName(sh_Data1.Range("A1").CurrentRegion.Rows(1))
+Debug.Print MergeRow(sh_Data1.Range("A1").CurrentRegion.Rows(1))
+End Sub
+
+Sub test_dict()
+Dim dict As Scripting.Dictionary
+Dim dict2 As Scripting.Dictionary
+
+Set dict = New Scripting.Dictionary
+dict.Add "1", "Apple"
+'dict.Add "1", "Fruit"
+Set dict2 = dict
+Set dict = New Scripting.Dictionary
+dict.Add "1", "Banana"
+End Sub
+
+'Public Function MergeDicts(ByRef iDict_unique1 As Scripting.Dictionary, ByRef iDict_unique2 As Scripting.Dictionary, ByRef iDict_Filler As Scripting.Dictionary)
+'    Dim key_unique1 As Variant, key_unique2 As Variant
+'    For Each key_unique2 In iDict_unique2.Keys
+'        If iDict_unique1.Exists(key_unique2) Then
+'            Select Case iDict_Filler
+'                Case ff__Filler.Left
+'                    dict_result.Add key_unique2, Join(Join(String(FillLeft - 1, "|"), iDict_unique1(key_unique2), iDict_unique2(key_unique2)), "|")
+'                Case ff__Filler.Middle
+'                    dict_result.Add key_unique2, Join(iDict_unique1(key_unique2), Join(String(FillMiddle - 1, "|"), iDict_unique2(key_unique2)), "|")
+'                Case ff__Filler.Right
+'                    dict_result.Add key_unique2, Join(iDict_unique1(key_unique2), iDict_unique2(key_unique2), Join(String(FillRight - 1, "|")), "|")
+'            End Select
+'        End If
+'    Next key_unique2
+'
+'End Function
